@@ -13,7 +13,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 PORT = int(os.environ.get("PORT", 5000))
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-MODEL_NAME = "facebook/bart-large-cnn"
+MODEL_NAME = "sshleifer/distilbart-cnn-6-6"
 
 _tokenizer = None
 _model = None
@@ -63,7 +63,13 @@ def neural_extract(text, section):
     context = get_targeted_context(text, section)
     inputs = _tokenizer(context, return_tensors="pt", max_length=1024, truncation=True).to(DEVICE)
     with torch.no_grad():
-        ids = _model.generate(**inputs, max_new_tokens=150, min_new_tokens=60, num_beams=3, no_repeat_ngram_size=3) # Beams 5 se 3 kiye for RAM safety
+       ids = _model.generate(
+    **inputs,
+    max_new_tokens=80,
+    min_new_tokens=30,
+    num_beams=2,
+    no_repeat_ngram_size=2
+) # Beams 5 se 3 kiye for RAM safety
     return _tokenizer.decode(ids[0], skip_special_tokens=True)
 
 @app.route("/")
