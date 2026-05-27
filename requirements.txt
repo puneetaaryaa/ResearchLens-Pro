@@ -1,0 +1,6 @@
+flask
+pymupdf
+transformers
+torch
+accelerate
+gunicorn
