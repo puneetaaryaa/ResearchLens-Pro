@@ -9,6 +9,9 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+# Gunicorn setup ke liye port dynamically uthana padta hai
+PORT = int(os.environ.get("PORT", 5000))
+
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MODEL_NAME = "facebook/bart-large-cnn"
 
@@ -18,8 +21,11 @@ _model = None
 def _load_model():
     global _tokenizer, _model
     if _model is None:
+        # CPU low-resource environment ke liye optimized loading
         _tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
         _model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME).to(DEVICE)
+        if DEVICE == "cpu":
+            _model.config.forced_bos_token_id = None # Memory optimizer
 
 def get_targeted_context(full_text, section_type):
     text_lower = full_text.lower()
@@ -39,7 +45,6 @@ def get_targeted_context(full_text, section_type):
     return full_text[start_pos : start_pos + 3500]
 
 def extract_metrics(text):
-    # Sirf numbers nahi, unke labels bhi extract karega professional look ke liye
     patterns = [
         r'\d+\.?\d*\%', 
         r'(accuracy|f1-score|precision|recall|auc|map)\s*[:=]?\s*\d?\.?\d+',
@@ -58,7 +63,7 @@ def neural_extract(text, section):
     context = get_targeted_context(text, section)
     inputs = _tokenizer(context, return_tensors="pt", max_length=1024, truncation=True).to(DEVICE)
     with torch.no_grad():
-        ids = _model.generate(**inputs, max_new_tokens=150, min_new_tokens=60, num_beams=5, no_repeat_ngram_size=3)
+        ids = _model.generate(**inputs, max_new_tokens=150, min_new_tokens=60, num_beams=3, no_repeat_ngram_size=3) # Beams 5 se 3 kiye for RAM safety
     return _tokenizer.decode(ids[0], skip_special_tokens=True)
 
 @app.route("/")
@@ -80,7 +85,6 @@ def analyze():
         author = meta.get('author') or "Author Not Found"
         doc.close()
 
-        # Logic for Citations
         cite_key = re.sub(r'\W+', '', author.split()[0].lower()) if author != "Author Not Found" else "research"
         citation = f"@article{{{cite_key}2026,\n  author = {{{author}}},\n  title = {{{title}}},\n  journal = {{ResearchLens AI Analysis}},\n  year = {{2026}}\n}}"
 
@@ -117,4 +121,5 @@ def export():
     return send_file(report, as_attachment=True)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Render env ke hisaab se host aur port automatically bind hoga
+    app.run(host="0.0.0.0", port=PORT)
