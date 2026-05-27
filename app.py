@@ -121,5 +121,5 @@ def export():
     return send_file(report, as_attachment=True)
 
 if __name__ == "__main__":
-    # Render env ke hisaab se host aur port automatically bind hoga
-    app.run(host="0.0.0.0", port=PORT)
+    # Local run karne ke liye default port 5000 rahega
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
